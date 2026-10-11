@@ -110,7 +110,7 @@ export class PoseSocket {
     if (this.token.length > 0) {
       header['Authorization'] = `Bearer ${this.token}`;
     }
-    const options: webSocket.WebSocketConnectOptions = { header: header };
+    const options: webSocket.WebSocketRequestOptions = { header: header };
     ws.connect(fullUrl, options).catch((_err: Error) => {
       hilog.warn(DOMAIN, TAG, 'connect failed');
       this.scheduleReconnect();

@@ -118,7 +118,7 @@ export class CameraController {
         return;
       }
       img.getComponent(image.ComponentType.JPEG).then((component) => {
-        const base64 = this.toBase64(component.buffer);
+        const base64 = this.toBase64(component.byteBuffer);
         img.release();
         this.busy = false;
         if (base64.length > 0) {
