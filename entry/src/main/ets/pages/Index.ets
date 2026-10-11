@@ -9,7 +9,7 @@ import { Tips } from '../util/Tips';
 const DOMAIN = 0x0803;
 const TAG = 'fitpose.Index';
 
-const STATE_TEXT: Record<WsState, string> = {
+const STATE_TEXT: Record<string, string> = {
   'idle': '未连接',
   'connecting': '连接中…',
   'open': '已连接',
@@ -94,8 +94,11 @@ struct Index {
 
       // 预览 + 骨架叠加
       Stack() {
-        XComponent({ id: 'fitpose_preview', type: XComponentType.SURFACE, libraryname: '' })
-          .controller(this.xComponentController)
+        XComponent({
+          id: 'fitpose_preview',
+          type: XComponentType.SURFACE,
+          controller: this.xComponentController,
+        })
           .onLoad(() => {
             const surfaceId = this.xComponentController.getXComponentSurfaceId();
             const rect = this.xComponentController.getXComponentSurfaceRect();

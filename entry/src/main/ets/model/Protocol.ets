@@ -1,6 +1,6 @@
 /**
  * 服务端 WS 协议模型，契约见 open-fitpose-server docs/protocol.md。
- * ArkTS 下 JSON 解析结果以 Record 显式取值转换。
+ * JSON 解析参照 ArkTS 规范：JSON.parse 结果直接 as 到显式接口。
  */
 
 export interface Keypoint {
@@ -35,115 +35,117 @@ export interface SocketEvent {
   code?: string;
 }
 
-function asRecord(v: Object | undefined): Record<string, Object> | null {
-  if (v === undefined || v === null) {
-    return null;
-  }
-  return v as Record<string, Object>;
+// ---- JSON 原始结构（字段与协议一一对应，均为可选） ----
+
+interface RawKeypoint {
+  name?: string;
+  x?: number;
+  y?: number;
+  score?: number;
 }
 
-function asNumber(v: Object | undefined, def: number): number {
-  if (v === undefined || v === null) {
-    return def;
-  }
-  const n = Number(v);
-  return Number.isNaN(n) ? def : n;
+interface RawStatus {
+  count?: number;
+  stage?: string;
 }
 
-function asString(v: Object | undefined, def: string): string {
-  if (v === undefined || v === null) {
-    return def;
-  }
-  return String(v);
+interface RawAnalysis {
+  squat?: RawStatus;
+  pushup?: RawStatus;
+  jumping_jack?: RawStatus;
 }
 
-function parseStatus(an: Record<string, Object>, key: string): ActionStatus {
-  const s = asRecord(an.get(key));
-  if (s === null) {
+interface RawMessage {
+  type?: string;
+  provider?: string;
+  seq?: number;
+  keypoints?: RawKeypoint[];
+  analysis?: RawAnalysis;
+  tips?: string[];
+  code?: string;
+}
+
+// ---- 上行消息（显式类，满足 ArkTS 对象字面量限制） ----
+
+class FrameMessage {
+  type: string = 'frame';
+  seq: number = 0;
+  format: string = 'jpeg';
+  data: string = '';
+}
+
+class HelloMessage {
+  type: string = 'hello';
+  protocol: number = 1;
+  client: string = 'ohos';
+}
+
+function toStatus(raw: RawStatus | undefined): ActionStatus {
+  if (raw === undefined) {
     return { count: 0, stage: 'idle' };
   }
   return {
-    count: asNumber(s.get('count'), 0),
-    stage: asString(s.get('stage'), 'idle'),
+    count: raw.count ?? 0,
+    stage: raw.stage ?? 'idle',
   };
 }
 
 /** 解析服务端下行消息，无法识别时返回 null。 */
 export function parseServerMessage(raw: string): SocketEvent | null {
-  const msg = asRecord(JSON.parse(raw));
-  if (msg === null) {
+  let msg: RawMessage;
+  try {
+    msg = JSON.parse(raw) as RawMessage;
+  } catch (e) {
     return null;
   }
-  const type = asString(msg.get('type'), '');
+  const type = msg.type ?? '';
   if (type === 'welcome') {
-    return { kind: 'welcome', provider: asString(msg.get('provider'), 'unknown') };
+    return { kind: 'welcome', provider: msg.provider ?? 'unknown' };
   }
   if (type === 'pose') {
-    const kpsRaw = msg.get('keypoints');
     const keypoints: Keypoint[] = [];
-    if (kpsRaw !== undefined && Array.isArray(kpsRaw)) {
-      const arr = kpsRaw as Object[];
-      for (let i = 0; i < arr.length; i++) {
-        const k = asRecord(arr[i]);
-        if (k === null) {
-          continue;
-        }
-        keypoints.push({
-          name: asString(k.get('name'), ''),
-          x: asNumber(k.get('x'), 0),
-          y: asNumber(k.get('y'), 0),
-          score: asNumber(k.get('score'), 0),
-        });
-      }
+    const rawKps = msg.keypoints ?? [];
+    for (const k of rawKps) {
+      keypoints.push({
+        name: k.name ?? '',
+        x: k.x ?? 0,
+        y: k.y ?? 0,
+        score: k.score ?? 0,
+      });
     }
     let analysis: Analysis | null = null;
-    const anRaw = asRecord(msg.get('analysis'));
-    if (anRaw !== null) {
+    if (msg.analysis !== undefined) {
       analysis = {
-        squat: parseStatus(anRaw, 'squat'),
-        pushup: parseStatus(anRaw, 'pushup'),
-        jumpingJack: parseStatus(anRaw, 'jumping_jack'),
+        squat: toStatus(msg.analysis.squat),
+        pushup: toStatus(msg.analysis.pushup),
+        jumpingJack: toStatus(msg.analysis.jumping_jack),
       };
-    }
-    const tips: string[] = [];
-    const tipsRaw = msg.get('tips');
-    if (tipsRaw !== undefined && Array.isArray(tipsRaw)) {
-      const arr = tipsRaw as Object[];
-      for (let i = 0; i < arr.length; i++) {
-        tips.push(String(arr[i]));
-      }
     }
     return {
       kind: 'pose',
       result: {
-        seq: asNumber(msg.get('seq'), 0),
+        seq: msg.seq ?? 0,
         keypoints: keypoints,
         analysis: analysis,
-        tips: tips,
+        tips: msg.tips ?? [],
       },
     };
   }
   if (type === 'error') {
-    return { kind: 'error', code: asString(msg.get('code'), 'UNKNOWN') };
+    return { kind: 'error', code: msg.code ?? 'UNKNOWN' };
   }
   return null;
 }
 
 /** 构造上行 frame 消息。 */
 export function buildFrameMessage(seq: number, jpegBase64: string): string {
-  return JSON.stringify({
-    type: 'frame',
-    seq: seq,
-    format: 'jpeg',
-    data: jpegBase64,
-  } as Record<string, Object>);
+  const m = new FrameMessage();
+  m.seq = seq;
+  m.data = jpegBase64;
+  return JSON.stringify(m);
 }
 
 /** 构造上行 hello 消息。 */
 export function buildHelloMessage(): string {
-  return JSON.stringify({
-    type: 'hello',
-    protocol: 1,
-    client: 'ohos',
-  } as Record<string, Object>);
+  return JSON.stringify(new HelloMessage());
 }
