@@ -1,0 +1,20 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "fitness pose recognition client"
+    },
+    {
+      "name": "ability_desc",
+      "value": "main ability"
+    },
+    {
+      "name": "Index_desc",
+      "value": "pose training page"
+    },
+    {
+      "name": "camera_perm_reason",
+      "value": "拍摄训练画面并识别运动姿势"
+    }
+  ]
+}

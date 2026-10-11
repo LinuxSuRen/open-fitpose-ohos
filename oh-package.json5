@@ -1,0 +1,10 @@
+{
+  "modelVersion": "6.0.0",
+  "name": "open-fitpose-ohos",
+  "version": "0.1.0",
+  "description": "Fitness pose recognition client for HarmonyOS (ArkTS)",
+  "main": "",
+  "author": "linuxsuren",
+  "license": "Apache-2.0",
+  "dependencies": {}
+}

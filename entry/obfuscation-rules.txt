@@ -1,0 +1,2 @@
+# 定义混淆规则（当前未启用混淆）
+-enable-property-obfuscation

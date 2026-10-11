@@ -1,0 +1,53 @@
+name: build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    continue-on-error: true  # CDT 下载链接可能过期，HAP 构建为可选
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 缓存 Command Line Tools
+        id: cdt-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/command-line-tools
+          key: cdt-6.1.1.268-linux-x64
+
+      - name: 下载 Command Line Tools
+        if: steps.cdt-cache.outputs.cache-hit != 'true'
+        run: |
+          # 从 GitHub 镜像仓库获取最新下载链接（华为 CDN 签名 URL 会过期）
+          CDT_URL=$(curl -sL "https://raw.githubusercontent.com/hhtczengjing/ohos_command_line_tools/main/versions/6.1.1.268.json" | python3 -c "
+          import json,sys
+          d = json.load(sys.stdin)
+          print(d['platforms']['linux-x64']['downloadUrl'])
+          ") || true
+          if [ -z "$CDT_URL" ]; then
+            echo "无法获取下载链接，跳过 HAP 构建"
+            exit 1
+          fi
+          curl -L --retry 3 -o /tmp/cdt.zip "$CDT_URL"
+          unzip -q /tmp/cdt.zip -d /tmp/cdt-out
+          mv /tmp/cdt-out/command-line-tools ~/command-line-tools
+
+      - name: 安装依赖并构建
+        run: |
+          export PATH=~/command-line-tools/bin:$PATH
+          export DEVECO_SDK_HOME=~/command-line-tools/sdk
+          ohpm install
+          hvigorw assembleHap --mode module -p product=default -p buildMode=debug --no-daemon
+
+      - name: 上传构建产物
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: entry-hap
+          path: entry/build/default/outputs/**/*.hap
