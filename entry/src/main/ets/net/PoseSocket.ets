@@ -26,11 +26,13 @@ export class PoseSocket {
   private seq: number = 0;
   private reconnectTimer: number = -1;
   private pendingFrame: string | null = null;
+  private onEvent: (e: SocketEvent) => void;
+  private onState: (s: WsState) => void;
 
-  constructor(
-    private onEvent: (e: SocketEvent) => void,
-    private onState: (s: WsState) => void,
-  ) {}
+  constructor(onEvent: (e: SocketEvent) => void, onState: (s: WsState) => void) {
+    this.onEvent = onEvent;
+    this.onState = onState;
+  }
 
   connect(url: string, token: string): void {
     this.url = url;
@@ -44,7 +46,7 @@ export class PoseSocket {
     this.wanted = false;
     this.cancelReconnect();
     this.closeSocket();
-    this.emitState('idle');
+    this.onState('idle');
   }
 
   /** 发送一帧 base64 JPEG；未连接时仅缓存最新一帧。 */
@@ -58,7 +60,7 @@ export class PoseSocket {
     this.seq += 1;
     ws.send(buildFrameMessage(this.seq, jpegBase64), (err) => {
       if (err) {
-        hilog.warn(DOMAIN, TAG, 'send frame failed: %{public}s', err.message ?? '');
+        hilog.warn(DOMAIN, TAG, 'send frame failed');
       }
     });
   }
@@ -67,7 +69,7 @@ export class PoseSocket {
     if (!this.wanted) {
       return;
     }
-    this.emitState('connecting');
+    this.onState('connecting');
     this.closeSocket();
 
     const ws = webSocket.createWebSocket();
@@ -75,8 +77,9 @@ export class PoseSocket {
 
     ws.on('open', () => {
       this.retry = 0;
-      this.emitState('open');
-      ws.send(buildHelloMessage(), () => {});
+      this.onState('open');
+      ws.send(buildHelloMessage(), () => {
+      });
       if (this.pendingFrame !== null) {
         this.sendFrame(this.pendingFrame);
       }
@@ -103,13 +106,13 @@ export class PoseSocket {
     const fullUrl = this.token.length > 0
       ? `${this.url}${this.url.includes('?') ? '&' : '?'}token=${this.token}`
       : this.url;
-    const options: webSocket.ConnectOptions = {
-      header: this.token.length > 0
-        ? { 'Authorization': `Bearer ${this.token}` } as Record<string, string>
-        : {} as Record<string, string>,
-    };
-    ws.connect(fullUrl, options).catch((err: Error) => {
-      hilog.warn(DOMAIN, TAG, 'connect failed: %{public}s', err.message);
+    const header: Record<string, string> = {};
+    if (this.token.length > 0) {
+      header['Authorization'] = `Bearer ${this.token}`;
+    }
+    const options: webSocket.WebSocketRequestOptions = { header: header };
+    ws.connect(fullUrl, options).catch((_err: Error) => {
+      hilog.warn(DOMAIN, TAG, 'connect failed');
       this.scheduleReconnect();
     });
   }
@@ -122,7 +125,7 @@ export class PoseSocket {
     this.cancelReconnect();
     const delay = Math.min(1000 * Math.pow(2, this.retry), 8000);
     this.retry += 1;
-    this.emitState('backoff');
+    this.onState('backoff');
     this.reconnectTimer = setTimeout(() => {
       this.open();
     }, delay);
@@ -145,9 +148,5 @@ export class PoseSocket {
       ws.close();
       this.ws = null;
     }
-  }
-
-  private emitState(s: WsState): void {
-    this.onState(s);
   }
 }

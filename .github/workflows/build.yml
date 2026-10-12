@@ -25,7 +25,7 @@ jobs:
         if: steps.cdt-cache.outputs.cache-hit != 'true'
         run: |
           # 从 GitHub 镜像仓库获取最新下载链接（华为 CDN 签名 URL 会过期）
-          CDT_URL=$(curl -sL "https://raw.githubusercontent.com/hhtczengjing/ohos_command_line_tools/main/versions/6.1.1.268.json" | python3 -c "
+          CDT_URL=$(curl -sL "https://raw.githubusercontent.com/hhtczengjing/ohos_command_line_tools/master/versions/6.1.1.268.json" | python3 -c "
           import json,sys
           d = json.load(sys.stdin)
           print(d['platforms']['linux-x64']['downloadUrl'])

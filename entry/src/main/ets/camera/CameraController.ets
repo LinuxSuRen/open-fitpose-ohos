@@ -64,7 +64,7 @@ export class CameraController {
       photoProfile.size.width, photoProfile.size.height, image.ImageFormat.JPEG, 8);
     const photoSurfaceId = await this.receiver.getReceivingSurfaceId();
     this.photoOutput = manager.createPhotoOutput(photoProfile, photoSurfaceId);
-    this.receiver.on('photoArrival', () => {
+    this.receiver.on('imageArrival', () => {
       this.readLatest();
     });
 
@@ -87,7 +87,7 @@ export class CameraController {
       clearInterval(this.captureTimer);
       this.captureTimer = -1;
     }
-    this.receiver?.off('photoArrival');
+    this.receiver?.off('imageArrival');
     this.photoOutput?.release();
     this.previewOutput?.release();
     this.cameraInput?.close();
@@ -117,18 +117,16 @@ export class CameraController {
         this.busy = false;
         return;
       }
-      img.getComponent(image.ComponentType.JPEG, (errComp, component) => {
-        if (errComp || component === undefined) {
-          img.release();
-          this.busy = false;
-          return;
-        }
-        const base64 = this.toBase64(component.buffer);
+      img.getComponent(image.ComponentType.JPEG).then((component) => {
+        const base64 = this.toBase64(component.byteBuffer);
         img.release();
         this.busy = false;
         if (base64.length > 0) {
           this.onFrame(base64);
         }
+      }).catch((_err: Error) => {
+        img.release();
+        this.busy = false;
       });
     });
   }
